@@ -1,7 +1,9 @@
 package dev.lumen.mixin;
 
 import dev.lumen.module.ModuleManager;
+import dev.lumen.module.impl.KeystrokesModule;
 import dev.lumen.module.impl.ZoomModule;
+import org.lwjgl.glfw.GLFW;
 import net.minecraft.client.Mouse;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,5 +19,12 @@ public abstract class MouseMixin {
 		if (zoom != null && zoom.isEnabled() && zoom.handleScroll(vertical)) {
 			ci.cancel();
 		}
+	}
+
+	@Inject(method = "onMouseButton", at = @At("HEAD"))
+	private void lumen$clicks(long window, int button, int action, int mods, CallbackInfo ci) {
+		if (action != GLFW.GLFW_PRESS) return;
+		KeystrokesModule keys = ModuleManager.get(KeystrokesModule.class);
+		if (keys != null && keys.isEnabled()) keys.registerClick(button);
 	}
 }

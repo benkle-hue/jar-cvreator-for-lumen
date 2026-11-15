@@ -14,8 +14,9 @@ Open the menu with **Right Shift** (rebind in Controls > Lumen Client).
 | Visuals | Clouds | Cloud height, tint colour or rainbow, brightness. |
 | Visuals | Custom Sky | Sky presets (Synthwave, Aurora, Sunset, Ocean, Rose, custom hue) and client-side time of day (incl. real clock). |
 | Utility | Toggle Sprint | Toggle key or always-sprint. Same as vanilla's sprint toggle accessibility option. |
-| Integrations | Spotify | Now-playing HUD with cover art and cover-colour theming, progress bar, play/pause/next/prev. |
-| Integrations | Discord RPC | Rich Presence (menus / singleplayer / multiplayer, optional Spotify track). |
+| Utility | Keystrokes | WASD, mouse buttons with live CPS, spacebar. Display only. |
+| Integrations | Music | Now-playing HUD for Spotify AND Firefox/Chrome/Edge/any app Windows can see (YouTube, SoundCloud, ...), cover art, play/pause/next/prev. Spotify login is optional. |
+| Integrations | Discord RPC | Vencord-style CustomRPC: activity type (Playing/Listening/Watching/Competing), name, two text lines with {placeholders}, images, 2 buttons, timer. |
 | Client | Interface | Accent colour (or rainbow), background dim, watermark + FPS. |
 
 ## Easiest build: let GitHub do it
@@ -64,3 +65,16 @@ The Discord desktop app must be running.
 ## Config
 
 `.minecraft/config/lumen/config.json` (saved when you close the menu and when the game exits).
+
+## Music from Firefox / Chrome / Edge
+
+Nothing to set up: the Music module reads Windows' own media controls (the same thing your keyboard media
+keys use), so whatever is playing in Firefox, Chrome, Edge, the Spotify app, VLC... shows up with cover art,
+and Prev / Play / Next control it. Windows only. The optional Spotify login adds exact Spotify data.
+
+## Discord RPC like Vencord
+
+Set `Content` to `Custom`. Placeholders for the text lines: `{status} {server} {music} {track} {artist} {source} {fps} {time}`.
+Vencord injects the activity straight into Discord's client; Lumen talks to Discord's local IPC and sends the same
+fields (type, name, details, state, images, buttons, timestamps). Discord decides what it actually displays, and
+buttons are not shown on your own profile (only to others).

@@ -474,7 +474,7 @@ public final class ClickGuiScreen extends Screen {
 						if (clip != null) {
 							String cleaned = clip.replaceAll("[\\r\\n\\t]", "").trim();
 							String merged = editing.getText() + cleaned;
-							editing.setText(merged.substring(0, Math.min(128, merged.length())));
+							editing.setText(merged.substring(0, Math.min(256, merged.length())));
 						}
 					}
 				}
@@ -492,7 +492,7 @@ public final class ClickGuiScreen extends Screen {
 	@Override
 	public boolean charTyped(char chr, int modifiers) {
 		if (editing != null) {
-			if (chr >= 32 && chr != 127 && editing.getText().length() < 128) {
+			if (chr >= 32 && chr != 127 && editing.getText().length() < 256) {
 				editing.setText(editing.getText() + chr);
 			}
 			return true;

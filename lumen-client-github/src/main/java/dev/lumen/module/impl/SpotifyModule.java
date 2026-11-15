@@ -1,5 +1,7 @@
 package dev.lumen.module.impl;
 
+import dev.lumen.integration.MediaService;
+import dev.lumen.integration.NowPlaying;
 import dev.lumen.integration.SpotifyService;
 import dev.lumen.module.ClientModule;
 import dev.lumen.module.Setting;
@@ -9,12 +11,16 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderLayer;
 
-/** Now-playing HUD plus playback controls (needs Spotify Premium for the controls). */
+/**
+ * Now-playing card for Spotify AND anything else Windows knows about (Firefox, Chrome, Edge, VLC...).
+ * Spotify login is optional: without it, the Spotify app / web player still shows up via Windows.
+ */
 public final class SpotifyModule extends ClientModule {
 	private static final int HUD_W = 164;
 	private static final int HUD_H = 46;
 
-	private final Setting clientId = add(Setting.text("Client ID", "", "Paste your Spotify app Client ID"));
+	private final Setting browserMedia = add(Setting.bool("Browser Media", true));
+	private final Setting clientId = add(Setting.text("Spotify Client ID", "", "Optional, only for Spotify login"));
 	private final Setting hud = add(Setting.bool("Show HUD", true));
 	private final Setting position = add(Setting.mode("HUD Position", "Top Right",
 			"Top Right", "Top Left", "Bottom Right", "Bottom Left"));
@@ -23,19 +29,19 @@ public final class SpotifyModule extends ClientModule {
 	private final Setting hideWhenPaused = add(Setting.bool("Hide When Paused", false));
 
 	public SpotifyModule() {
-		super("Spotify", "Now-playing card with cover art and playback controls.", Category.INTEGRATIONS);
+		super("Music", "Now playing from Spotify, Firefox, Chrome, Edge and more.", Category.INTEGRATIONS);
 		addActionRow(new Action(() -> switch (SpotifyService.state()) {
-			case CONNECTED -> "Disconnect";
+			case CONNECTED -> "Disconnect Spotify";
 			case CONNECTING -> "Connecting...";
-			default -> "Connect";
+			default -> "Connect Spotify (optional)";
 		}, this::toggleConnection));
 		addActionRow(
-				Action.of("Prev", SpotifyService::previous),
+				Action.of("Prev", NowPlaying::previous),
 				new Action(() -> {
-					SpotifyService.Track t = SpotifyService.current();
+					SpotifyService.Track t = NowPlaying.current();
 					return t != null && t.playing() ? "Pause" : "Play";
-				}, SpotifyService::playPause),
-				Action.of("Next", SpotifyService::next));
+				}, NowPlaying::playPause),
+				Action.of("Next", NowPlaying::next));
 		refreshStatus();
 	}
 
@@ -54,26 +60,31 @@ public final class SpotifyModule extends ClientModule {
 	@Override
 	protected void onEnable() {
 		SpotifyService.start(clientId.getText());
+		if (browserMedia.getBool()) MediaService.start();
 	}
 
 	@Override
 	protected void onDisable() {
 		SpotifyService.stop();
+		MediaService.stop();
 	}
 
 	@Override
 	public void onTick(MinecraftClient mc) {
+		boolean wantMedia = browserMedia.getBool();
+		if (wantMedia && !MediaService.isRunning()) MediaService.start();
+		else if (!wantMedia && MediaService.isRunning()) MediaService.stop();
 		refreshStatus();
 	}
 
 	private void refreshStatus() {
-		String msg = SpotifyService.message();
-		status = switch (SpotifyService.state()) {
-			case CONNECTED -> !msg.isEmpty() ? msg
-					: SpotifyService.deviceName().isEmpty() ? "Connected" : "Connected - " + SpotifyService.deviceName();
-			case CONNECTING -> msg.isEmpty() ? "Connecting..." : msg;
-			default -> msg.isEmpty() ? "Paste your Client ID, then press Connect." : msg;
-		};
+		SpotifyService.Track t = NowPlaying.current();
+		String media = MediaService.status();
+		String spotify = SpotifyService.message();
+		if (t != null) status = "Now playing from " + t.source();
+		else if (!media.isEmpty()) status = media;
+		else if (!spotify.isEmpty() && SpotifyService.state() != SpotifyService.State.DISCONNECTED) status = spotify;
+		else status = "Play something in Firefox, Chrome, Spotify or any media app.";
 	}
 
 	// ---------------------------------------------------------------- settings panel card
@@ -83,7 +94,7 @@ public final class SpotifyModule extends ClientModule {
 
 	@Override
 	public void renderPanelExtra(DrawContext ctx, int x, int y, int w) {
-		SpotifyService.Track t = SpotifyService.current();
+		SpotifyService.Track t = NowPlaying.current();
 		int tint = t != null && coverColors.getBool() ? 0xFF000000 | t.tint() : Theme.accent();
 		int bg = RenderUtil.lerpArgb(Theme.CARD, tint | 0xFF000000, 0.12f);
 		RenderUtil.roundRect(ctx, x, y, w, 58, 8, bg);
@@ -94,19 +105,23 @@ public final class SpotifyModule extends ClientModule {
 		int tw = w - 66;
 		if (t == null) {
 			RenderUtil.text(ctx, "Nothing playing", tx, y + 14, 1f, Theme.TEXT, false);
-			RenderUtil.text(ctx, RenderUtil.trim("Start Spotify on any device", tw), tx, y + 27, 0.85f, Theme.MUTED, false);
+			RenderUtil.text(ctx, RenderUtil.trim("Start music anywhere", tw), tx, y + 27, 0.85f, Theme.MUTED, false);
 			return;
 		}
 		RenderUtil.text(ctx, RenderUtil.trim(t.title(), tw), tx, y + 9, 1f, Theme.TEXT, false);
-		RenderUtil.text(ctx, RenderUtil.trim(t.artist(), tw), tx, y + 21, 0.85f, Theme.MUTED, false);
+		RenderUtil.text(ctx, RenderUtil.trim(t.artist().isEmpty() ? t.source() : t.artist(), tw), tx, y + 21, 0.85f, Theme.MUTED, false);
 
-		int by = y + 38;
-		float p = t.durationMs() > 0 ? Math.min(1f, t.progressMs() / (float) t.durationMs()) : 0f;
-		RenderUtil.roundRect(ctx, tx, by, tw, 3, 1, Theme.OFF_TRACK);
-		RenderUtil.roundRect(ctx, tx, by, Math.max(2, Math.round(tw * p)), 3, 1, t.playing() ? tint : Theme.FAINT);
-		RenderUtil.text(ctx, RenderUtil.time(t.progressMs()), tx, by + 6, 0.7f, Theme.FAINT, false);
-		String total = RenderUtil.time(t.durationMs());
-		RenderUtil.text(ctx, total, tx + tw - RenderUtil.width(total, 0.7f), by + 6, 0.7f, Theme.FAINT, false);
+		if (t.durationMs() > 0) {
+			int by = y + 38;
+			float p = Math.min(1f, t.progressMs() / (float) t.durationMs());
+			RenderUtil.roundRect(ctx, tx, by, tw, 3, 1, Theme.OFF_TRACK);
+			RenderUtil.roundRect(ctx, tx, by, Math.max(2, Math.round(tw * p)), 3, 1, t.playing() ? tint : Theme.FAINT);
+			RenderUtil.text(ctx, RenderUtil.time(t.progressMs()), tx, by + 6, 0.7f, Theme.FAINT, false);
+			String total = RenderUtil.time(t.durationMs());
+			RenderUtil.text(ctx, total, tx + tw - RenderUtil.width(total, 0.7f), by + 6, 0.7f, Theme.FAINT, false);
+		} else {
+			RenderUtil.text(ctx, t.playing() ? "Playing" : "Paused", tx, y + 40, 0.8f, Theme.FAINT, false);
+		}
 	}
 
 	private void drawCover(DrawContext ctx, SpotifyService.Track t, int x, int y, int size) {
@@ -123,7 +138,7 @@ public final class SpotifyModule extends ClientModule {
 	@Override
 	public void onHud(DrawContext ctx) {
 		if (!hud.getBool()) return;
-		SpotifyService.Track t = SpotifyService.current();
+		SpotifyService.Track t = NowPlaying.current();
 		if (t == null || (hideWhenPaused.getBool() && !t.playing())) return;
 
 		float s = (float) scale.getNumber();
@@ -155,15 +170,20 @@ public final class SpotifyModule extends ClientModule {
 		int tx = 47;
 		int tw = HUD_W - tx - 8;
 		RenderUtil.text(ctx, RenderUtil.trim(t.title(), tw), tx, 7, 1f, Theme.TEXT, false);
-		RenderUtil.text(ctx, RenderUtil.trim(t.artist(), tw), tx, 19, 0.85f, Theme.MUTED, false);
+		String sub = t.artist().isEmpty() ? t.source() : t.artist();
+		RenderUtil.text(ctx, RenderUtil.trim(sub, tw), tx, 19, 0.85f, Theme.MUTED, false);
 
-		float p = t.durationMs() > 0 ? Math.min(1f, t.progressMs() / (float) t.durationMs()) : 0f;
-		RenderUtil.roundRect(ctx, tx, HUD_H - 12, tw, 3, 1, 0xFF2A2E3F);
-		RenderUtil.roundRect(ctx, tx, HUD_H - 12, Math.max(2, Math.round(tw * p)), 3, 1, RenderUtil.alpha(tint, alpha));
-		String left = RenderUtil.time(t.progressMs());
-		String right = RenderUtil.time(t.durationMs());
-		RenderUtil.text(ctx, left, tx, HUD_H - 8, 0.6f, Theme.FAINT, false);
-		RenderUtil.text(ctx, right, tx + tw - RenderUtil.width(right, 0.6f), HUD_H - 8, 0.6f, Theme.FAINT, false);
+		if (t.durationMs() > 0) {
+			float p = Math.min(1f, t.progressMs() / (float) t.durationMs());
+			RenderUtil.roundRect(ctx, tx, HUD_H - 12, tw, 3, 1, 0xFF2A2E3F);
+			RenderUtil.roundRect(ctx, tx, HUD_H - 12, Math.max(2, Math.round(tw * p)), 3, 1, RenderUtil.alpha(tint, alpha));
+			String left = RenderUtil.time(t.progressMs());
+			String right = RenderUtil.time(t.durationMs());
+			RenderUtil.text(ctx, left, tx, HUD_H - 8, 0.6f, Theme.FAINT, false);
+			RenderUtil.text(ctx, right, tx + tw - RenderUtil.width(right, 0.6f), HUD_H - 8, 0.6f, Theme.FAINT, false);
+		} else {
+			RenderUtil.text(ctx, t.playing() ? "via " + t.source() : "Paused", tx, HUD_H - 11, 0.7f, Theme.FAINT, false);
+		}
 
 		ctx.getMatrices().pop();
 	}

@@ -5,6 +5,7 @@ import dev.lumen.module.impl.CloudsModule;
 import dev.lumen.module.impl.CustomSkyModule;
 import dev.lumen.module.impl.DiscordRpcModule;
 import dev.lumen.module.impl.InterfaceModule;
+import dev.lumen.module.impl.KeystrokesModule;
 import dev.lumen.module.impl.SpotifyModule;
 import dev.lumen.module.impl.ToggleSprintModule;
 import dev.lumen.module.impl.WeatherModule;
@@ -24,6 +25,7 @@ public final class ModuleManager {
 		ALL.add(new InterfaceModule());
 		ALL.add(new ZoomModule());
 		ALL.add(new ToggleSprintModule());
+		ALL.add(new KeystrokesModule());
 		ALL.add(new WeatherModule());
 		ALL.add(new CloudsModule());
 		ALL.add(new CustomSkyModule());

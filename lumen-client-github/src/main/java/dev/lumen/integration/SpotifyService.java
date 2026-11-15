@@ -52,7 +52,7 @@ public final class SpotifyService {
 	public enum State { DISCONNECTED, CONNECTING, CONNECTED }
 
 	public record Track(String title, String artist, String album, long durationMs, long progressMs,
-						boolean playing, Identifier cover, int tint) {}
+						boolean playing, Identifier cover, int tint, String source) {}
 
 	private static final int PORT = 8898;
 	private static final String REDIRECT = "http://127.0.0.1:" + PORT + "/callback";
@@ -71,12 +71,9 @@ public final class SpotifyService {
 	private static volatile boolean playing;
 	private static volatile String title = "", artist = "", album = "", coverUrl = "", deviceName = "";
 	private static volatile long duration, baseProgress, baseTime;
-	private static volatile Identifier coverId;
-	private static volatile int tint = DEFAULT_TINT;
 
 	private static String loadedCoverUrl = "";
-	private static NativeImageBackedTexture coverTexture;
-	private static int coverCounter;
+	private static final CoverArt cover = new CoverArt("spotify");
 
 	private static ScheduledExecutorService pool;
 	private static ScheduledFuture<?> pollTask;
@@ -174,7 +171,7 @@ public final class SpotifyService {
 		long progress = baseProgress;
 		if (playing) progress += System.currentTimeMillis() - baseTime;
 		if (duration > 0) progress = Math.min(progress, duration);
-		return new Track(title, artist, album, duration, Math.max(0, progress), playing, coverId, tint);
+		return new Track(title, artist, album, duration, Math.max(0, progress), playing, cover.id(), cover.tint(), "Spotify");
 	}
 
 	public static void playPause() {
@@ -450,68 +447,11 @@ public final class SpotifyService {
 		pool().execute(() -> {
 			try {
 				Resp r = http("GET", url, null, null, null);
-				if (r.code != 200) return;
-				BufferedImage src = ImageIO.read(new ByteArrayInputStream(r.body));
-				if (src == null) return;
-
-				int newTint = dominantColor(src);
-
-				BufferedImage out = new BufferedImage(128, 128, BufferedImage.TYPE_INT_ARGB);
-				Graphics2D g = out.createGraphics();
-				g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-				g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-				g.drawImage(src, 0, 0, 128, 128, null);
-				g.dispose();
-
-				ByteArrayOutputStream png = new ByteArrayOutputStream();
-				ImageIO.write(out, "png", png);
-				NativeImage image = NativeImage.read(new ByteArrayInputStream(png.toByteArray()));
-
-				MinecraftClient.getInstance().execute(() -> installCover(image, newTint));
+				if (r.code == 200) cover.set(r.body);
 			} catch (Exception e) {
 				LumenClient.LOG.debug("Cover load failed: {}", e.toString());
 			}
 		});
-	}
-
-	private static void installCover(NativeImage image, int newTint) {
-		MinecraftClient mc = MinecraftClient.getInstance();
-		Identifier old = coverId;
-		Identifier id = Identifier.of("lumen", "spotify/cover/" + (++coverCounter));
-		NativeImageBackedTexture texture = new NativeImageBackedTexture(image);
-		mc.getTextureManager().registerTexture(id, texture);
-		coverTexture = texture;
-		coverId = id;
-		tint = newTint;
-		if (old != null) mc.getTextureManager().destroyTexture(old);
-	}
-
-	/** Saturation-weighted average colour, nudged so it always works as a bright accent on a dark card. */
-	private static int dominantColor(BufferedImage src) {
-		BufferedImage small = new BufferedImage(24, 24, BufferedImage.TYPE_INT_RGB);
-		Graphics2D g = small.createGraphics();
-		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-		g.drawImage(src, 0, 0, 24, 24, null);
-		g.dispose();
-		double r = 0, gr = 0, b = 0, total = 0;
-		float[] hsb = new float[3];
-		for (int y = 0; y < 24; y++) {
-			for (int x = 0; x < 24; x++) {
-				int rgb = small.getRGB(x, y);
-				int cr = (rgb >> 16) & 255, cg = (rgb >> 8) & 255, cb = rgb & 255;
-				Color.RGBtoHSB(cr, cg, cb, hsb);
-				double w = hsb[1] * hsb[2] + 0.05;
-				r += cr * w;
-				gr += cg * w;
-				b += cb * w;
-				total += w;
-			}
-		}
-		if (total <= 0) return DEFAULT_TINT;
-		Color.RGBtoHSB((int) (r / total), (int) (gr / total), (int) (b / total), hsb);
-		float s = Math.max(0.45f, hsb[1]);
-		float v = Math.max(0.75f, hsb[2]);
-		return Color.HSBtoRGB(hsb[0], s, v) & 0xFFFFFF;
 	}
 
 	// ---------------------------------------------------------------- helpers
