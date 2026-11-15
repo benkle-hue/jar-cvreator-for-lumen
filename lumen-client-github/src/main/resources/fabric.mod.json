@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "lumen",
+  "version": "${version}",
+  "name": "Lumen Client",
+  "description": "A clean, animated client-side quality-of-life mod: zoom, custom skies, clouds, weather, toggle sprint, Spotify and Discord Rich Presence. No cheats.",
+  "authors": ["You"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.lumen.LumenClient"]
+  },
+  "mixins": ["lumen.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

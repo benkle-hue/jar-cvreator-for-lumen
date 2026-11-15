@@ -1,0 +1,9 @@
+{
+  "key.lumen.gui": "Open Lumen Menu",
+  "key.lumen.zoom": "Zoom",
+  "key.lumen.sprint": "Toggle Sprint",
+  "key.lumen.spotify.play": "Spotify: Play / Pause",
+  "key.lumen.spotify.next": "Spotify: Next Track",
+  "key.lumen.spotify.prev": "Spotify: Previous Track",
+  "category.lumen.keys": "Lumen Client"
+}

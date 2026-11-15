@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "package": "dev.lumen.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "GameRendererMixin",
+    "MouseMixin",
+    "ClientWorldMixin",
+    "WorldMixin",
+    "DimensionEffectsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
